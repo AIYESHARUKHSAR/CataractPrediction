@@ -6,7 +6,6 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Status](https://img.shields.io/badge/Status-M.Tech%20Project-purple)
 
-> **M.Tech Computer Science & Engineering — NIT Delhi (2024–25)**  
 > Automated detection of cataract disease from retinal fundus photographs using VGG-16 transfer learning.
 
 ---
@@ -384,10 +383,6 @@ This provides a transparent, clinician-interpretable explanation for each predic
 | Field | Details |
 |-------|---------|
 | **Name** | Aiyesha Rukhsar |
-| **Programme** | M.Tech Computer Science & Engineering |
-| **Institution** | National Institute of Technology Delhi (NIT Delhi) |
-| **Academic Year** | 2024–25 |
-| **GitHub** | [@AIYESHARUKHSAR](https://github.com/AIYESHARUKHSAR) |
 
 ---
 
