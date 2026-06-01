@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CataractAI — CNN-Based Fundus Image Analysis</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+<!-- ── Navigation ──────────────────────────────────────────────────────────── -->
+<nav class="navbar">
+  <div class="nav-inner">
+    <div class="nav-brand">
+      <span class="brand-icon">🔬</span>
+      <span class="brand-name">CataractAI</span>
+      <span class="brand-tag">VGG-16 · ODIR-5K</span>
+    </div>
+    <div class="nav-meta">
+      <span>M.Tech Project &nbsp;|&nbsp; NIT Delhi</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-inner">
+    <h1 class="hero-title">CNN-Based Cataract Disease Prediction</h1>
+    <p class="hero-sub">
+      Upload a retinal fundus photograph for automated AI-assisted cataract screening
+      using a fine-tuned <strong>VGG-16</strong> deep learning model trained on
+      <strong>ODIR-5K</strong> fundus images.
+    </p>
+    <div class="badge-row">
+      <span class="badge badge-blue">TensorFlow 2.x</span>
+      <span class="badge badge-green">VGG-16 Transfer Learning</span>
+      <span class="badge badge-teal">Binary Classification</span>
+      <span class="badge badge-purple">Grad-CAM Explainability</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── Main card ────────────────────────────────────────────────────────────── -->
+<main class="main-wrap">
+
+  <!-- Upload card -->
+  <div class="card upload-card" id="uploadCard">
+    <div class="card-header">
+      <h2>Fundus Image Analysis</h2>
+      <p>Supported formats: JPG, PNG, BMP, TIFF &nbsp;·&nbsp; Max size: 16 MB</p>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-icon">📷</div>
+      <p class="drop-primary">Drag &amp; drop a fundus image here</p>
+      <p class="drop-secondary">or</p>
+      <label class="btn-outline" for="fileInput">Browse Files</label>
+      <input type="file" id="fileInput" accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp" hidden />
+    </div>
+
+    <!-- Preview (hidden until file selected) -->
+    <div class="preview-wrap hidden" id="previewWrap">
+      <img id="previewImg" src="" alt="Preview" class="preview-img"/>
+      <p id="previewName" class="preview-name"></p>
+    </div>
+
+    <button class="btn-primary" id="analyzeBtn" disabled>
+      <span id="btnText">Analyze Image</span>
+      <span id="btnSpinner" class="spinner hidden"></span>
+    </button>
+  </div>
+
+  <!-- Results card (hidden until prediction returns) -->
+  <div class="card result-card hidden" id="resultCard">
+    <div class="card-header">
+      <h2>Analysis Result</h2>
+    </div>
+
+    <div class="result-images">
+      <div class="img-panel">
+        <p class="img-label">Original Image</p>
+        <img id="origImg" src="" alt="Original fundus image"/>
+      </div>
+      <div class="img-panel">
+        <p class="img-label">Grad-CAM Heatmap</p>
+        <img id="camImg" src="" alt="Grad-CAM overlay"/>
+        <p class="img-caption">Highlighted regions drove the prediction</p>
+      </div>
+    </div>
+
+    <div class="result-summary" id="resultSummary">
+      <!-- injected by JS -->
+    </div>
+
+    <button class="btn-outline reset-btn" id="resetBtn">Analyze Another Image</button>
+  </div>
+
+  <!-- Error toast -->
+  <div class="toast hidden" id="toast"></div>
+
+</main>
+
+<!-- ── Footer ───────────────────────────────────────────────────────────────── -->
+<footer class="footer">
+  <p>
+    <strong>Aiyesha Rukhsar</strong> &nbsp;·&nbsp; M.Tech Computer Science &amp; Engineering
+    &nbsp;·&nbsp; NIT Delhi &nbsp;·&nbsp; 2024–25
+  </p>
+  <p class="disclaimer">
+    ⚠ This tool is for <em>research and educational purposes only</em>.
+    It is not a certified medical diagnostic device. Always consult a qualified
+    ophthalmologist for clinical diagnosis.
+  </p>
+</footer>
+
+<!-- ── JavaScript ───────────────────────────────────────────────────────────── -->
+<script>
+  const dropZone    = document.getElementById("dropZone");
+  const fileInput   = document.getElementById("fileInput");
+  const previewWrap = document.getElementById("previewWrap");
+  const previewImg  = document.getElementById("previewImg");
+  const previewName = document.getElementById("previewName");
+  const analyzeBtn  = document.getElementById("analyzeBtn");
+  const btnText     = document.getElementById("btnText");
+  const btnSpinner  = document.getElementById("btnSpinner");
+  const resultCard  = document.getElementById("resultCard");
+  const uploadCard  = document.getElementById("uploadCard");
+  const origImg     = document.getElementById("origImg");
+  const camImg      = document.getElementById("camImg");
+  const resultSummary = document.getElementById("resultSummary");
+  const resetBtn    = document.getElementById("resetBtn");
+  const toast       = document.getElementById("toast");
+
+  let selectedFile = null;
+
+  // ── File selection ──────────────────────────────────────────────────────────
+  fileInput.addEventListener("change", e => handleFile(e.target.files[0]));
+
+  dropZone.addEventListener("dragover", e => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+  dropZone.addEventListener("dragleave", () => dropZone.classList.remove("drag-over"));
+  dropZone.addEventListener("drop", e => {
+    e.preventDefault();
+    dropZone.classList.remove("drag-over");
+    handleFile(e.dataTransfer.files[0]);
+  });
+
+  function handleFile(file) {
+    if (!file) return;
+    const ok = /\.(jpe?g|png|bmp|tiff|webp)$/i.test(file.name);
+    if (!ok) { showToast("Unsupported format. Use JPG, PNG, BMP, or TIFF."); return; }
+
+    selectedFile = file;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      previewImg.src  = ev.target.result;
+      previewName.textContent = file.name + "  (" + (file.size / 1024).toFixed(1) + " KB)";
+      previewWrap.classList.remove("hidden");
+      analyzeBtn.disabled = false;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  // ── Analyze ─────────────────────────────────────────────────────────────────
+  analyzeBtn.addEventListener("click", async () => {
+    if (!selectedFile) return;
+
+    setLoading(true);
+
+    const fd = new FormData();
+    fd.append("file", selectedFile);
+
+    try {
+      const resp = await fetch("/predict", { method: "POST", body: fd });
+      const data = await resp.json();
+
+      if (data.error) { showToast(data.error); setLoading(false); return; }
+
+      renderResult(data);
+    } catch (err) {
+      showToast("Network error — is the server running?");
+      setLoading(false);
+    }
+  });
+
+  function renderResult(data) {
+    origImg.src = data.original_image;
+    camImg.src  = data.gradcam_image || data.original_image;
+
+    const isCataract = data.label === 1;
+    const barWidth   = Math.round(data.confidence);
+    const barColor   = isCataract ? "#e74c3c" : "#27ae60";
+    const badgeCls   = isCataract ? "badge-red" : "badge-green-solid";
+
+    resultSummary.innerHTML = `
+      <div class="result-header ${isCataract ? 'result-positive' : 'result-negative'}">
+        <span class="result-badge ${badgeCls}">${data.prediction.toUpperCase()}</span>
+        <span class="result-msg">${data.message}</span>
+      </div>
+      <div class="conf-row">
+        <span class="conf-label">Confidence</span>
+        <div class="conf-bar-wrap">
+          <div class="conf-bar" style="width:${barWidth}%;background:${barColor}"></div>
+        </div>
+        <span class="conf-value">${data.confidence}%</span>
+      </div>
+      <div class="prob-row">
+        <span>Raw probability: <strong>${data.probability}</strong></span>
+        <span>Threshold: <strong>0.5</strong></span>
+      </div>
+    `;
+
+    setLoading(false);
+    uploadCard.classList.add("hidden");
+    resultCard.classList.remove("hidden");
+    resultCard.scrollIntoView({ behavior: "smooth" });
+  }
+
+  // ── Reset ───────────────────────────────────────────────────────────────────
+  resetBtn.addEventListener("click", () => {
+    selectedFile = null;
+    fileInput.value = "";
+    previewWrap.classList.add("hidden");
+    previewImg.src = "";
+    analyzeBtn.disabled = true;
+    resultCard.classList.add("hidden");
+    uploadCard.classList.remove("hidden");
+    uploadCard.scrollIntoView({ behavior: "smooth" });
+  });
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  function setLoading(on) {
+    analyzeBtn.disabled = on;
+    btnText.textContent = on ? "Analyzing…" : "Analyze Image";
+    btnSpinner.classList.toggle("hidden", !on);
+  }
+
+  function showToast(msg) {
+    toast.textContent = msg;
+    toast.classList.remove("hidden");
+    setTimeout(() => toast.classList.add("hidden"), 4000);
+  }
+</script>
+</body>
+</html>
